@@ -1,0 +1,573 @@
+Here is the full step-by-step procedure with code, commands, and expected output for:
+
+Q05. Configure a Jenkins pipeline to automate the building and deployment of a Dockerized application from GitHub
+
+This answer uses:
+
+GitHub → stores source code
+
+Docker → containerizes app
+
+Jenkins → automates build and deployment
+
+
+
+---
+
+1. Project structure
+
+Create a folder like this in your GitHub repo:
+
+myapp/
+│
+├── app.py
+├── requirements.txt
+├── Dockerfile
+└── Jenkinsfile
+
+
+---
+
+2. Create application code
+
+app.py
+
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "<h1>Hello from Jenkins Docker Pipeline!</h1>"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+
+
+---
+
+requirements.txt
+
+flask
+
+
+---
+
+3. Create Dockerfile
+
+Dockerfile
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
+
+
+---
+
+4. Push project to GitHub
+
+Open terminal inside project folder and run:
+
+git init
+git add .
+git commit -m "Initial commit for Jenkins pipeline project"
+git branch -M main
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git push -u origin main
+
+Expected output
+
+Initialized empty Git repository
+[main (root-commit) xxxx] Initial commit for Jenkins pipeline project
+ 4 files changed
+Enumerating objects
+Counting objects
+Writing objects
+To https://github.com/<your-username>/<your-repo>.git
+ * [new branch] main -> main
+
+
+---
+
+5. Start Jenkins using Docker
+
+First create Docker volume:
+
+docker volume create jenkins-data
+
+Output
+
+jenkins-data
+
+Now run Jenkins container:
+
+docker run -d --name jenkins -p 8080:8080 -p 50000:50000 -v jenkins-data:/var/jenkins_home -v /var/run/docker.sock:/var/run/docker.sock jenkins/jenkins:lts
+
+Output
+
+<container-id>
+
+Check running containers:
+
+docker ps
+
+Output
+
+CONTAINER ID   IMAGE                  STATUS          PORTS
+xxxxxx         jenkins/jenkins:lts    Up few seconds  0.0.0.0:8080->8080/tcp
+
+
+---
+
+6. Get Jenkins initial password
+
+Run:
+
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+
+Output
+
+a1b2c3d4e5f6g7h8i9j0.....
+
+Copy this password.
+
+Now open in browser:
+
+http://localhost:8080
+
+Paste password and continue.
+
+
+---
+
+7. Install Jenkins plugins
+
+Inside Jenkins:
+
+Select Install suggested plugins
+
+After Jenkins opens, go to:
+
+
+Manage Jenkins → Plugins
+
+Install:
+
+Git plugin
+
+Pipeline plugin
+
+Docker Pipeline plugin
+
+
+
+---
+
+8. Install Docker CLI inside Jenkins container
+
+Jenkins container must have Docker command inside it.
+
+Run:
+
+docker exec -u root jenkins bash -c "apt-get update && apt-get install -y docker.io"
+
+Expected output
+
+Get:1 ...
+Get:2 ...
+Setting up docker.io ...
+
+Check Docker inside Jenkins container:
+
+docker exec jenkins docker --version
+
+Output
+
+Docker version xx.xx.x, build xxxxx
+
+
+---
+
+9. Create Docker Hub account details in Jenkins
+
+Go to:
+
+Manage Jenkins → Credentials → System → Global credentials → Add Credentials
+
+Choose:
+
+Kind: Username with password
+
+Username: your Docker Hub username
+
+Password: your Docker Hub password
+
+ID: dockerhub-creds
+
+
+Save it.
+
+
+---
+
+10. Create Jenkinsfile
+
+Place this file in the root of GitHub repository.
+
+Jenkinsfile
+
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "myapp"
+        DOCKER_HUB_USER = "yourdockerhubusername"
+    }
+
+    stages {
+        stage('Clone') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/yourusername/yourrepo.git'
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                sh 'docker build -t $DOCKER_HUB_USER/$IMAGE_NAME:latest .'
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKER_HUB_USER/$IMAGE_NAME:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                sh '''
+                    docker rm -f myapp-container || true
+                    docker run -d -p 5000:5000 --name myapp-container $DOCKER_HUB_USER/$IMAGE_NAME:latest
+                '''
+            }
+        }
+    }
+}
+
+
+---
+
+11. Create Jenkins pipeline job
+
+In Jenkins:
+
+Click New Item
+
+Enter name: myapp-pipeline
+
+Select Pipeline
+
+Click OK
+
+
+Then scroll to Pipeline section:
+
+Definition → Pipeline script from SCM
+
+SCM → Git
+
+Repository URL → https://github.com/yourusername/yourrepo.git
+
+Branch → */main
+
+Script Path → Jenkinsfile
+
+
+Click Save
+
+
+---
+
+12. Build pipeline
+
+Now click:
+
+Build Now
+
+Jenkins starts all stages one by one.
+
+
+---
+
+13. Expected console output
+
+When build runs successfully, console output will look like this:
+
+Clone stage output
+
+Started by user admin
+Obtained Jenkinsfile from git https://github.com/yourusername/yourrepo.git
+Cloning the remote Git repository
+Cloning repository https://github.com/yourusername/yourrepo.git
+ > git init /var/jenkins_home/workspace/myapp-pipeline
+Fetching upstream changes from https://github.com/yourusername/yourrepo.git
+Checking out Revision xxxxxxxxx
+
+
+---
+
+Build Image stage output
+
+[Pipeline] stage
+[Pipeline] { (Build Image)
++ docker build -t yourdockerhubusername/myapp:latest .
+Sending build context to Docker daemon
+Step 1/6 : FROM python:3.11-slim
+ ---> xxxxx
+Step 2/6 : WORKDIR /app
+ ---> Running in xxxxx
+Step 3/6 : COPY requirements.txt .
+ ---> xxxxx
+Step 4/6 : RUN pip install --no-cache-dir -r requirements.txt
+Successfully installed flask
+Step 5/6 : COPY . .
+Step 6/6 : CMD ["python", "app.py"]
+Successfully built xxxxx
+Successfully tagged yourdockerhubusername/myapp:latest
+
+
+---
+
+Push Image stage output
+
+[Pipeline] stage
+[Pipeline] { (Push Image)
++ echo ****
++ docker login -u yourdockerhubusername --password-stdin
+Login Succeeded
++ docker push yourdockerhubusername/myapp:latest
+The push refers to repository [docker.io/yourdockerhubusername/myapp]
+latest: digest: sha256:xxxxxxxx size: xxxx
+
+
+---
+
+Deploy Container stage output
+
+[Pipeline] stage
+[Pipeline] { (Deploy Container)
++ docker rm -f myapp-container
+myapp-container
++ docker run -d -p 5000:5000 --name myapp-container yourdockerhubusername/myapp:latest
+a1b2c3d4e5f6g7h8
+
+
+---
+
+Final build success output
+
+Finished: SUCCESS
+
+
+---
+
+14. Check deployed container
+
+Run this command in terminal:
+
+docker ps
+
+Output
+
+CONTAINER ID   IMAGE                               STATUS         PORTS
+xxxxxx         yourdockerhubusername/myapp:latest  Up 10 seconds  0.0.0.0:5000->5000/tcp
+
+
+---
+
+15. Test application in browser
+
+Open:
+
+http://localhost:5000
+
+Output in browser
+
+Hello from Jenkins Docker Pipeline!
+
+Displayed as:
+
+Hello from Jenkins Docker Pipeline!
+
+
+---
+
+16. Full working code together
+
+app.py
+
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "<h1>Hello from Jenkins Docker Pipeline!</h1>"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+
+
+---
+
+requirements.txt
+
+flask
+
+
+---
+
+Dockerfile
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["python", "app.py"]
+
+
+---
+
+Jenkinsfile
+
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "myapp"
+        DOCKER_HUB_USER = "yourdockerhubusername"
+    }
+
+    stages {
+        stage('Clone') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/yourusername/yourrepo.git'
+            }
+        }
+
+        stage('Build Image') {
+            steps {
+                sh 'docker build -t $DOCKER_HUB_USER/$IMAGE_NAME:latest .'
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $DOCKER_HUB_USER/$IMAGE_NAME:latest
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Container') {
+            steps {
+                sh '''
+                    docker rm -f myapp-container || true
+                    docker run -d -p 5000:5000 --name myapp-container $DOCKER_HUB_USER/$IMAGE_NAME:latest
+                '''
+            }
+        }
+    }
+}
+
+
+---
+
+17. Simple explanation of each stage
+
+Clone
+
+Jenkins downloads project from GitHub.
+
+Build Image
+
+Jenkins builds Docker image using Dockerfile.
+
+Push Image
+
+Jenkins pushes image to Docker Hub.
+
+Deploy Container
+
+Jenkins runs container from that image.
+
+
+---
+
+18. Final answer for record/workbook
+
+You can write this:
+
+A Jenkins pipeline was configured to automate CI/CD for a Dockerized Flask application stored in GitHub. Jenkins was run inside Docker, connected with GitHub repository, and configured with Docker Hub credentials. The pipeline cloned the repository, built the Docker image, pushed it to Docker Hub, and deployed the application as a container. The successful execution was verified through Jenkins console output and by opening the application in the browser on port 5000.
+
+
+---
+
+19. Viva answer in simple words
+
+Jenkins pipeline is used to automate the software delivery process. In this project, Jenkins takes code from GitHub, builds a Docker image, uploads it to Docker Hub, and deploys the app automatically. This reduces manual work and supports continuous integration and deployment.
+
+
+---
+
+20. Important note
+
+Replace these values with your own:
+
+yourdockerhubusername
+
+yourusername
+
+yourrepo
+
+
+
+---
+
+I can also convert this into exam-writing format with Aim, Procedure, Code, Output, Result.
