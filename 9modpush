@@ -1,0 +1,97 @@
+#
+Q 09
+
+Clone a GitHub repository, modify a file and push the changes back to the repository.
+Git GitHub
+
+
+Step 1 – Clone
+
+bashcopy
+
+
+
+git clone https://github.com/<username>/<repo-name>.git
+cd <repo-name>
+
+Step 2 – Modify a file
+
+bashcopy
+
+
+echo "Updated content" >> README.md
+cat README.md
+git diff
+
+Step 3 – Commit & push
+
+bashcopy
+
+
+
+git add README.md
+git commit -m "docs: update README with new content"
+git push origin main
+git log --oneline -3
+
+
+
+#optional 
+
+
+
+
+Step 1 – Clone
+
+
+
+git clone https://github.com/<username>/<repo-name>.git
+cd <repo-name>
+
+
+
+✅ Step 2 – Modify a file (Windows corrected)
+
+
+
+echo Updated content >> README.md
+type README.md
+git diff
+
+✔ Replace cat with type (since you are using Windows CMD)
+
+✅ Step 3 – Commit & Push
+
+
+
+
+git add README.md
+git commit -m "docs: update README with new content"
+git push origin main
+git log --oneline -3
+
+
+⚡ Final Correct Flow (All Together)
+
+
+git clone https://github.com/<username>/<repo-name>.git
+cd <repo-name>
+echo Updated content >> README.md
+type README.md
+git diff
+git add README.md
+git commit -m "docs: update README with new content"
+git push origin main
+git log --oneline -3
+
+
+
+🎯 Key Fixes
+❌ cat README.md → ✅ type README.md
+✔ Everything else is already correct
+📌 If using PowerShell instead of CMD
+
+You can use:
+
+Get-Content README.md
+
